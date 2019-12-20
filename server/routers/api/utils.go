@@ -99,11 +99,13 @@ func CheckIfUserHasCoupon(username, couponName string) (bool, int, error) {
 		"coupon":   couponName,
 	})
 	key := redis.GenCouponOwnersKey(couponName)
+	keyCoupon := redis.GenCouponKey(username, couponName)
 	exist, err := redis.SIsmember(key, username)
+	var coupon *models.Coupon
 	if err == nil {
 		if exist == true {
 			logger.Info("[utils.CheckIfUserHasCoupon] user has the coupon")
-			couponBytes, err := redis.Get(key)
+			couponBytes, err := redis.Get(keyCoupon)
 			if err == nil {
 				coupon, err := CouponBytesToStruct(couponBytes)
 				if err == nil {
@@ -111,18 +113,33 @@ func CheckIfUserHasCoupon(username, couponName string) (bool, int, error) {
 					return true, coupon.Stock, nil
 				}
 			}
-			return true, nil, nil
+			coupon, err = models.GetCoupon(username, couponName)
+			if gorm.IsRecordNotFoundError(err) {
+				logger.Info("[utils.CheckIfUserHasCoupon] models.GetCoupon coupon not exists")
+				return false, 0, nil
+			}
+			if err != nil {
+				logger.WithError(err).Warn("[utils.CheckIfUserHasCoupon] models.GetCoupon db error")
+				return false, 0, err
+			}
+			err = redis.Set(keyCoupon, coupon, 5*60)
+			if err != nil {
+				logger.WithError(err).Warn("[utils.CheckIfUserHasCoupon] redis.SAdd error")
+			} else {
+				logger.Info("[utils.CheckIfUserHasCoupon] redis.SAdd success")
+			}
+			return true, coupon.Stock, nil
 		}
 	}
-
+	
 	coupon, err = models.GetCoupon(username, couponName)
 	if gorm.IsRecordNotFoundError(err) {
 		logger.Info("[utils.CheckIfUserHasCoupon] models.GetCoupon coupon not exists")
-		return false, nil, nil
+		return false, 0, nil
 	}
 	if err != nil {
 		logger.WithError(err).Warn("[utils.CheckIfUserHasCoupon] models.GetCoupon db error")
-		return false, nil, err
+		return false, 0, err
 	}
 
 	// _, err = redis.SAdd(key, username)
@@ -158,7 +175,7 @@ func GetUserKindWithCache(username string) (string, error) {
 		return "", err
 	}
 
-	kindStr := models.KindInt2Str[user.Kind]
+	kindStr := user.Kind//models.KindInt2Str[user.Kind]
 	err = redis.Set(key, kindStr, 5*60)
 	if err != nil {
 		logger.WithError(err).Warn("redis.Set error")

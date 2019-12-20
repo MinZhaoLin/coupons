@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"strconv"
-	"fmt"
 )
 
 type AddCouponsReq struct {
@@ -138,14 +137,14 @@ func GetCouponsInfo(ctx *gin.Context) {
 			}).Warn("[api.GetCouponsInfo] models.GetCouponsWithPage db error")
 			ctx.JSON(400, gin.H{
 				"errMsg": "",
-				"data":   coupons,
+				"data":   []models.Coupon{},
 			})
 			return
 		}
 		if coupons == nil || len(coupons) == 0 {
 			ctx.JSON(204, gin.H{
 				"errMsg": "query null",
-				"data": coupons,
+				"data": []models.Coupon{},
 			})
 			return
 		}
@@ -190,15 +189,14 @@ func GetCouponsInfo(ctx *gin.Context) {
 		}).Warn("[api.GetCouponsInfo] models.GetCouponsWithPage db error")
 		ctx.JSON(400, gin.H{
 			"errMsg": "db error",
-			"data":   coupons,
+			"data":   []models.Coupon{},
 		})
 		return
 	}
-	fmt.Println(coupons)
 	if coupons == nil || len(coupons) == 0 {
 		ctx.JSON(204, gin.H{
 			"errMsg": "query null",
-			"data": coupons,
+			"data": []models.Coupon{},
 		})
 		return
 	}
