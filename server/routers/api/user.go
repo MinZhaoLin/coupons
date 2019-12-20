@@ -10,7 +10,7 @@ import (
 type AddUserReq struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
-	Kind     int    `json:"kind"`
+	Kind     string `json:"kind"`
 }
 
 func AddUser(ctx *gin.Context) {
@@ -18,13 +18,23 @@ func AddUser(ctx *gin.Context) {
 
 	err := ctx.BindJSON(&req)
 	if err != nil {
+		logrus.Infof("[api.AddUser] ctx.BindJSON error, username: %v, err: %v", req.Username, err.Error())
 		ctx.JSON(400, gin.H{
 			"errMsg": "params error",
 		})
 		return
 	}
 
+	if req.Kind != models.KindCustomerStr && req.Kind != models.KindSalerStr {
+		logrus.Infof("[api.AddUser] kind is not customer or saler : %v", req.Kind)
+		ctx.JSON(400, gin.H{ 
+			"errMsg": "params kind error",
+		})
+		return
+	}
+
 	userKindStr, err := GetUserKindWithCache(req.Username)
+
 	if err != nil {
 		logrus.WithError(err).WithFields(logrus.Fields{
 			"username": req.Username,
@@ -34,6 +44,7 @@ func AddUser(ctx *gin.Context) {
 		})
 		return
 	}
+
 	if userKindStr != "" {
 		ctx.JSON(400, gin.H{
 			"errMsg": "username exists",
@@ -52,15 +63,14 @@ func AddUser(ctx *gin.Context) {
 		return
 	}
 
-	kindStr := models.KindInt2Str[req.Kind]
-	err = redis.Set(redis.GenUserKindKey(req.Username), kindStr, 5*60)
+	err = redis.Set(redis.GenUserKindKey(req.Username), req.Kind, 5*60)
 	if err != nil {
 		logrus.WithError(err).Warn("[api.AddUser] redis.Set error")
 	} else {
 		logrus.Info("[api.AddUser] redis.Set success")
 	}
 
-	ctx.JSON(200, gin.H{
+	ctx.JSON(201, gin.H{
 		"errMsg": "",
 	})
 }

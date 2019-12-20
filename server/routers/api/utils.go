@@ -93,7 +93,7 @@ func CouponBytesToStruct(couponBytes []byte) (*models.Coupon, error) {
 	return &coupon, nil
 }
 
-func CheckIfUserHasCoupon(username, couponName string) (bool, error) {
+func CheckIfUserHasCoupon(username, couponName string) (bool, int, error) {
 	logger := logrus.WithFields(logrus.Fields{
 		"username": username,
 		"coupon":   couponName,
@@ -103,28 +103,37 @@ func CheckIfUserHasCoupon(username, couponName string) (bool, error) {
 	if err == nil {
 		if exist == true {
 			logger.Info("[utils.CheckIfUserHasCoupon] user has the coupon")
-			return true, nil
+			couponBytes, err := redis.Get(key)
+			if err == nil {
+				coupon, err := CouponBytesToStruct(couponBytes)
+				if err == nil {
+					logger.Info("[utils.GetCouponWithCache] coupon exists in redis")
+					return true, coupon.Stock, nil
+				}
+			}
+			return true, nil, nil
 		}
 	}
 
-	_, err = models.GetCoupon(username, couponName)
+	coupon, err = models.GetCoupon(username, couponName)
 	if gorm.IsRecordNotFoundError(err) {
 		logger.Info("[utils.CheckIfUserHasCoupon] models.GetCoupon coupon not exists")
-		return false, nil
+		return false, nil, nil
 	}
 	if err != nil {
 		logger.WithError(err).Warn("[utils.CheckIfUserHasCoupon] models.GetCoupon db error")
-		return false, err
+		return false, nil, err
 	}
 
-	_, err = redis.SAdd(key, username)
+	// _, err = redis.SAdd(key, username)
+	err = redis.Set(key, coupon, 5*60)
 	if err != nil {
 		logger.WithError(err).Warn("[utils.CheckIfUserHasCoupon] redis.SAdd error")
 	} else {
 		logger.Info("[utils.CheckIfUserHasCoupon] redis.SAdd success")
 	}
 
-	return true, nil
+	return true, coupon.Stock ,nil
 }
 
 func GetUserKindWithCache(username string) (string, error) {

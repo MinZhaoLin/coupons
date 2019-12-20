@@ -9,7 +9,7 @@ import (
 type Coupon struct {
 	ID          uint   `gorm:"primary_key" json:"-"`
 	Username    string `gorm:"type:varchar(20)" json:"username"`
-	Coupons     string `gorm:"type:varchar(60)" json:"coupons"`
+	Coupons     string `gorm:"type:varchar(60)" json:"name"`
 	Description string `gorm:"type:varchar(60)" json:"description"`
 	Stock       int    `json:"stock"`
 	Amount      int    `json:"amount"`
@@ -56,7 +56,7 @@ func AddCoupon(username, name, description string, stock, amount int) error {
 	return err
 }
 
-func AssignCoupon(salerName, customerName string, coupon *Coupon) (bool, error) {
+func AssignCoupon(salerName, customerName string, couponName string, couponStock int) (bool, error) {
 	tx := db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -68,21 +68,21 @@ func AssignCoupon(salerName, customerName string, coupon *Coupon) (bool, error) 
 		return false, err
 	}
 
-	query := tx.Exec("UPDATE coupon SET `left`=`left`-1 WHERE `username`=? AND `coupons`=? AND `left`>1", salerName, coupon.Coupons)
+	query := tx.Exec("UPDATE coupon SET `left`=`left`-1 WHERE `username`=? AND `coupons`=? AND `left`>=1", salerName, couponName)
 	err := query.Error
 	rowsAffected := query.RowsAffected
 	if err != nil || rowsAffected != 1 {
 		logrus.Infof("[models.AssignCoupon] salerName: %v, customerName: %v, couponName: %v, rowsAffected: %v",
-			salerName, customerName, coupon.Coupons, rowsAffected)
+			salerName, customerName, couponName, rowsAffected)
 		tx.Rollback()
 		return false, err
 	}
 
 	err = tx.Create(&Coupon{
 		Username:    customerName,
-		Coupons:     coupon.Coupons,
+		Coupons:     couponName,
 		Description: "",
-		Stock:       coupon.Stock,
+		Stock:       couponStock,
 		Amount:      1,
 		Left:        1,
 	}).Error

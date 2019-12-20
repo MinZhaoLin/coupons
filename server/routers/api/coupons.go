@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"strconv"
+	"fmt"
 )
 
 type AddCouponsReq struct {
@@ -141,9 +142,16 @@ func GetCouponsInfo(ctx *gin.Context) {
 			})
 			return
 		}
+		if coupons == nil || len(coupons) == 0 {
+			ctx.JSON(204, gin.H{
+				"errMsg": "query null",
+				"data": coupons,
+			})
+			return
+		}
 		ctx.JSON(200, gin.H{
 			"errMsg": "",
-			"data":   coupons,
+			"data": coupons,
 		})
 		return
 	}
@@ -160,6 +168,7 @@ func GetCouponsInfo(ctx *gin.Context) {
 		})
 		return
 	}
+
 	if userKindStr != models.KindSalerStr {
 		logrus.WithFields(logrus.Fields{
 			"username": username,
@@ -185,9 +194,17 @@ func GetCouponsInfo(ctx *gin.Context) {
 		})
 		return
 	}
+	fmt.Println(coupons)
+	if coupons == nil || len(coupons) == 0 {
+		ctx.JSON(204, gin.H{
+			"errMsg": "query null",
+			"data": coupons,
+		})
+		return
+	}
 	ctx.JSON(200, gin.H{
 		"errMsg": "",
-		"data":   coupons,
+		"data": coupons,
 	})
 }
 
@@ -233,7 +250,7 @@ func AssignCoupon(ctx *gin.Context) {
 		return
 	}
 
-	exist, err := CheckIfUserHasCoupon(tokenUsername, couponName)
+	exist, couponStock, err := CheckIfUserHasCoupon(tokenUsername, couponName)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"customer": tokenUsername,
@@ -256,7 +273,7 @@ func AssignCoupon(ctx *gin.Context) {
 		return
 	}
 
-	exist, err = CheckIfUserHasCoupon(salerName, couponName)
+	exist, couponStock, err = CheckIfUserHasCoupon(salerName, couponName)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"saler":  salerName,
@@ -310,6 +327,8 @@ func AssignCoupon(ctx *gin.Context) {
 	}
 
 	// push msg to mq
+	subscribeAssignCoupon := &(models.SubscribeAssignCoupon{SalerName: salerName, TokenUsername: tokenUsername, CouponName: couponName, CouponStock: couponStock})
+	models.NatsEncodedConn.Publish(models.AssignCoupon_Subj, subscribeAssignCoupon)
 
 	ctx.JSON(201, gin.H{
 		"errMsg": "",
